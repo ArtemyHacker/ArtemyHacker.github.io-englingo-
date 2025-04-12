@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EngLingo-by @mrpixoff</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --primary: #58CC02;
+            --secondary: #1CB0F6;
+            --background: #FFFFFF;
+            --text: #2D2D2D;
+            --error: #FF4B4B;
+            --border-radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial Rounded MT Bold', sans-serif;
+        }
+
+        body {
+            background: #f8f9fa;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .auth-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 40px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            animation: slideIn 0.6s ease;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: var(--primary);
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .author-link {
+            color: var(--secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: opacity 0.3s;
+        }
+
+        .author-link:hover {
+            opacity: 0.8;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            margin: 8px 0;
+            transition: all 0.2s ease;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(88, 204, 2, 0.2);
+        }
+
+        .main-btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .main-btn:active {
+            transform: scale(0.98);
+        }
+
+        .assignment-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            margin: 12px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            animation: slideIn 0.4s ease;
+        }
+
+        .stats-card {
+            background: #f8fff0;
+            border-left: 4px solid var(--primary);
+        }
+
+        .correct { border-color: var(--primary) !important; }
+        .incorrect { border-color: var(--error) !important; }
+
+        .hidden {
+            display: none;
+        }
+
+        .pulse {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Экран аутентификации -->
+    <div class="container" id="authScreen">
+        <div class="auth-card">
+            <div class="logo">
+                <h1>EngLingo</h1>
+                <a href="https://t.me/mrpixoff" class="author-link" target="_blank">by @mrpixoff</a>
+            </div>
+            
+            <div id="authForm">
+                <input type="email" id="email" class="input-field" placeholder="Ваш email">
+                <input type="password" id="password" class="input-field" placeholder="Пароль">
+                <button class="main-btn pulse" onclick="handleAuth()">Войти/Зарегистрироваться</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Кабинет учителя -->
+    <div class="container hidden" id="teacherDashboard">
+        <div class="auth-card">
+            <div class="logo">
+                <h1>👩🏫 Учитель</h1>
+                <button class="main-btn" onclick="logout()">Выйти</button>
+            </div>
+            
+            <div class="assignment-card">
+                <h3>Создать задание</h3>
+                <div id="wordPairs">
+                    <input type="text" class="input-field" placeholder="Русское слово">
+                    <input type="text" class="input-field" placeholder="Английский перевод">
+                </div>
+                <button class="main-btn" onclick="addWordPair()">➕ Добавить слово</button>
+                <button class="main-btn" onclick="createAssignment()">🚀 Опубликовать</button>
+                <div id="assignmentIdContainer" class="hidden">
+                    <div class="assignment-card stats-card">
+                        <p>ID задания: <strong id="assignmentIdValue"></strong></p>
+                        <input type="text" id="statsId" class="input-field" placeholder="Введите ID для статистики">
+                        <button class="main-btn" onclick="showStats()">📊 Показать статистику</button>
+                    </div>
+                </div>
+                <div id="statsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Кабинет ученика -->
+    <div class="container hidden" id="studentDashboard">
+        <div class="auth-card">
+            <div class="logo">
+                <h1>👨🎓 Ученик</h1>
+                <button class="main-btn" onclick="logout()">Выйти</button>
+            </div>
+            
+            <div class="assignment-card">
+                <input type="text" id="assignmentIdInput" class="input-field" placeholder="Введите ID задания">
+                <button class="main-btn" onclick="loadAssignment()">📖 Загрузить</button>
+                <div id="assignmentContent"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyC3k82J4Ej22w7V8Sxbrlh5BGvfBIp684E",
+        authDomain: "englingo-mrpixoff.firebaseapp.com",
+        projectId: "englingo-mrpixoff",
+        storageBucket: "englingo-mrpixoff.appspot.com",
+        messagingSenderId: "848862851316",
+        appId: "1:848862851316:web:78115ff335e6fd90d0aea1",
+        measurementId: "G-TVPTN53TZE"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let currentAssignmentId = null;
+
+    // Обработка авторизации
+    async function handleAuth() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            currentUser = userCredential.user;
+            checkUserRole();
+        } catch (error) {
+            if (error.code === 'auth/user-not-found') {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                currentUser = userCredential.user;
+                await db.collection('users').doc(currentUser.uid).set({
+                    email: email,
+                    role: 'teacher'
+                });
+                showDashboard('teacher');
+            } else {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+    }
+
+    // Проверка роли
+    async function checkUserRole() {
+        const doc = await db.collection('users').doc(currentUser.uid).get();
+        doc.exists ? showDashboard(doc.data().role) : alert('Роль не найдена!');
+    }
+
+    // Создание задания
+    async function createAssignment() {
+        const inputs = document.querySelectorAll('#wordPairs .input-field');
+        const words = [];
+        
+        for (let i = 0; i < inputs.length; i += 2) {
+            const russian = inputs[i].value.trim();
+            const english = inputs[i+1].value.trim();
+            if (russian && english) words.push({ russian, english });
+        }
+
+        if (words.length === 0) return alert('Добавьте слова!');
+
+        const assignmentId = generateId();
+        await db.collection('assignments').doc(assignmentId).set({
+            teacherId: currentUser.uid,
+            words,
+            createdAt: new Date()
+        });
+
+        document.getElementById('assignmentIdContainer').classList.remove('hidden');
+        document.getElementById('assignmentIdValue').textContent = assignmentId;
+    }
+
+    // Загрузка задания
+    async function loadAssignment() {
+        const assignmentId = document.getElementById('assignmentIdInput').value.trim();
+        if (!assignmentId) return alert('Введите ID задания!');
+
+        const doc = await db.collection('assignments').doc(assignmentId).get();
+        if (!doc.exists) return alert('Задание не найдено!');
+
+        showAssignment(doc.data().words);
+        currentAssignmentId = assignmentId;
+    }
+
+    // Отображение задания
+    function showAssignment(words) {
+        let html = '';
+        words.forEach((word, index) => {
+            html += `
+                <div class="input-field-container">
+                    <p>${word.russian}</p>
+                    <input type="text" 
+                           class="input-field"
+                           placeholder="Перевод"
+                           data-answer="${word.english.toLowerCase()}">
+                </div>
+            `;
+        });
+        html += '<button class="main-btn" onclick="submitAnswers()">✅ Проверить</button>';
+        document.getElementById('assignmentContent').innerHTML = html;
+    }
+
+    // Отправка ответов
+    async function submitAnswers() {
+        const inputs = document.querySelectorAll('[data-answer]');
+        const answers = {};
+        let correct = 0;
+
+        inputs.forEach((input, index) => {
+            const answer = input.value.trim().toLowerCase();
+            const isCorrect = answer === input.dataset.answer;
+            input.classList.toggle('correct', isCorrect);
+            input.classList.toggle('incorrect', !isCorrect);
+            if (isCorrect) correct++;
+            answers[`word${index}`] = { answer, correct: isCorrect };
+        });
+
+        await db.collection('submissions').add({
+            assignmentId: currentAssignmentId,
+            studentId: currentUser.uid,
+            answers,
+            score: correct,
+            timestamp: new Date()
+        });
+
+        alert(`Правильных ответов: ${correct}/${inputs.length}`);
+    }
+
+    // Показать статистику
+    async function showStats() {
+        const assignmentId = document.getElementById('statsId').value.trim();
+        if (!assignmentId) return alert('Введите ID задания!');
+
+        const snapshot = await db.collection('submissions')
+            .where('assignmentId', '==', assignmentId)
+            .get();
+
+        if (snapshot.empty) return alert('Нет данных!');
+
+        let html = '<h3>📊 Статистика выполнения:</h3>';
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            html += `
+                <div class="assignment-card stats-card">
+                    <p>Ученик: ${data.studentId.substr(0, 6)}</p>
+                    <p>Результат: ${data.score}/${Object.keys(data.answers).length}</p>
+                </div>
+            `;
+        });
+
+        document.getElementById('statsContent').innerHTML = html;
+    }
+
+    // Вспомогательные функции
+    function generateId() {
+        return Math.random().toString(36).substr(2, 9).toUpperCase();
+    }
+
+    function addWordPair() {
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <input type="text" class="input-field" placeholder="Русское слово">
+            <input type="text" class="input-field" placeholder="Английский перевод">
+        `;
+        document.getElementById('wordPairs').appendChild(div);
+    }
+
+    function logout() {
+        auth.signOut();
+        location.reload();
+    }
+
+    function showDashboard(role) {
+        document.getElementById('authScreen').classList.add('hidden');
+        document.getElementById(`${role}Dashboard`).classList.remove('hidden');
+    }
+
+    // Инициализация
+    auth.onAuthStateChanged(user => {
+        if (user) currentUser = user;
+        else document.getElementById('authScreen').classList.remove('hidden');
+    });
+</script>
+</body>
+</html>
